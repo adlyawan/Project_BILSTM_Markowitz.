@@ -1,0 +1,23 @@
+// Daftar 20 saham BUMN — cermin dari BUMN20 di backend/app.py
+const BUMN20 = {
+  BBRI: 'Bank Rakyat Indonesia',
+  BMRI: 'Bank Mandiri',
+  BBNI: 'Bank Negara Indonesia',
+  BBTN: 'Bank Tabungan Negara',
+  BRIS: 'Bank Syariah Indonesia',
+  TLKM: 'Telkom Indonesia',
+  PTBA: 'Bukit Asam',
+  ANTM: 'Aneka Tambang',
+  PTPP: 'PP (Persero)',
+  WIKA: 'Wijaya Karya',
+  WSKT: 'Waskita Karya',
+  ADHI: 'Adhi Karya',
+  JSMR: 'Jasa Marga',
+  PGAS: 'Perusahaan Gas Negara',
+  ELSA: 'Elnusa',
+  AKRA: 'AKR Corporindo',
+  SMGR: 'Semen Indonesia',
+  INAF: 'Indofarma',
+  KAEF: 'Kimia Farma',
+  GIAA: 'Garuda Indonesia',
+};

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Adly | Dashboard Saham BUMN</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/lib/chart.umd.js" defer></script>
+</head>
+<body>
+
+<div id="sidebar-overlay"></div>
+
+<aside id="sidebar">
+  <div class="brand">
+    <div class="brand-icon">🪙</div>
+    <div>
+      <div class="brand-name">Project Adly</div>
+      <div class="brand-sub">Dashboard Saham BUMN</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Pilih Saham</div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="ticker-select">Ticker</label>
+      <select id="ticker-select"></select>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Rentang Tanggal</label>
+      <div class="date-row">
+        <input type="date" id="date-start">
+        <input type="date" id="date-end">
+      </div>
+    </div>
+    <button class="btn btn-gold" id="btn-load-data">📊 Muat Data</button>
+  </div>
+
+  <div class="sidebar-section" id="section-lstm">
+    <div class="sidebar-label">Parameter BiLSTM</div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Lookback (hari) <span id="val-lookback">60</span></label>
+      <div class="slider-wrap"><input type="range" id="lookback" min="10" max="120" step="5" value="60"></div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Epoch <span id="val-epochs">30</span></label>
+      <div class="slider-wrap"><input type="range" id="epochs" min="5" max="100" step="5" value="30"></div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="batch-size">Batch Size</label>
+      <select id="batch-size">
+        <option value="16">16</option>
+        <option value="32" selected>32</option>
+        <option value="64">64</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Prediksi ke Depan (hari) <span id="val-future">30</span></label>
+      <div class="slider-wrap"><input type="range" id="future-days" min="5" max="90" step="5" value="30"></div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Porsi Data Uji (%) <span id="val-testpct">20</span></label>
+      <div class="slider-wrap"><input type="range" id="test-pct" min="10" max="40" step="5" value="20"></div>
+    </div>
+    <button class="btn btn-gold" id="btn-train-lstm">🧠 Latih Model</button>
+  </div>
+
+  <div class="sidebar-section" id="section-portfolio">
+    <div class="sidebar-label">Parameter Portofolio</div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Pilih Saham (min. 2)</label>
+      <div class="multi-select" id="ticker-multiselect"></div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Jumlah Simulasi <span id="val-sims">3000</span></label>
+      <div class="slider-wrap"><input type="range" id="n-sims" min="500" max="8000" step="500" value="3000"></div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Suku Bunga Bebas Risiko (%) <span id="val-rf">6</span></label>
+      <div class="slider-wrap"><input type="range" id="risk-free" min="0" max="15" step="0.5" value="6"></div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="modal">Modal (Rp)</label>
+      <input type="number" id="modal" value="100000000" step="1000000" min="1000000">
+    </div>
+    <button class="btn btn-gold" id="btn-optimize">🌟 Optimalkan Portofolio</button>
+  </div>
+</aside>
+
+<div id="main">
+  <header id="topbar">
+    <div class="topbar-title">
+      <button id="sidebar-toggle" aria-label="Buka menu">☰</button>
+      <span id="topbar-label">Ringkasan Pasar</span>
+    </div>
+    <div class="topbar-right">
+      <span class="badge">BUMN20</span>
+      <span class="theme-icon" id="theme-icon">🌙</span>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Ganti tema terang/gelap"></button>
+    </div>
+  </header>
+
+  <div id="ticker-strip"><div class="strip-inner" id="strip-inner">
+    <span class="strip-item"><span class="strip-ticker">Memuat ticker…</span></span>
+  </div></div>
+
+  <div id="content">
+
+    <div class="cards-row" id="cards-row">
+      <div class="card">
+        <div class="card-label">💰 Harga Terakhir</div>
+        <div class="card-value" id="card-price">–</div>
+        <div class="card-sub" id="card-ticker-name">Pilih saham di sidebar</div>
+      </div>
+      <div class="card">
+        <div class="card-label">📈 Perubahan Harian</div>
+        <div class="card-value" id="card-change">–</div>
+        <div class="card-sub" id="card-change-sub">–</div>
+      </div>
+      <div class="card">
+        <div class="card-label">⚡ RSI (14)</div>
+        <div class="card-value" id="card-rsi">–</div>
+        <div class="card-sub" id="card-rsi-sub">–</div>
+      </div>
+      <div class="card">
+        <div class="card-label">🧭 Sinyal Tren</div>
+        <div class="card-value" id="card-signal">–</div>
+        <div class="card-sub" id="card-signal-sub">MA20 vs MA50</div>
+      </div>
+    </div>
+
+    <div class="tabs-wrap">
+      <div class="tab-list">
+        <button class="tab-btn active" data-tab="overview">📋 Ringkasan</button>
+        <button class="tab-btn" data-tab="technical">📈 Analisis Teknikal</button>
+        <button class="tab-btn" data-tab="lstm">🧠 Prediksi BiLSTM</button>
+        <button class="tab-btn" data-tab="portfolio">🌟 Optimasi Portofolio</button>
+      </div>
+
+      <!-- ── TAB: OVERVIEW ─────────────────────────────────────────────── -->
+      <div class="tab-panel active" id="tab-overview">
+        <div id="overview-alert"></div>
+        <div class="chart-panel">
+          <div class="panel-title">📋 Daftar Saham BUMN20 <span style="margin-left:auto;font-weight:400;" id="overview-updated"></span></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Ticker</th><th>Nama Perusahaan</th><th>Harga</th><th>Perubahan</th></tr>
+              </thead>
+              <tbody id="overview-tbody">
+                <tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Memuat data…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: TECHNICAL ────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-technical">
+        <div id="technical-alert"></div>
+
+        <div class="chart-panel">
+          <div class="panel-title" id="price-panel-title">📈 Harga Penutupan, Moving Average &amp; Bollinger Bands</div>
+          <div class="chart-container" style="position:relative;">
+            <div class="chart-placeholder" id="chart-price-ph"><span class="icon">📊</span>Klik "Muat Data" di sidebar untuk menampilkan grafik</div>
+            <canvas id="chart-price" style="display:none;"></canvas>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="chart-panel">
+            <div class="panel-title">📦 Volume</div>
+            <div class="chart-sm" style="position:relative;">
+              <div class="chart-placeholder" id="chart-volume-ph" style="height:100%;"><span class="icon">📦</span>Belum ada data</div>
+              <canvas id="chart-volume" style="display:none;"></canvas>
+            </div>
+          </div>
+          <div class="chart-panel">
+            <div class="panel-title">⚡ RSI (14)</div>
+            <div class="chart-sm" style="position:relative;">
+              <div class="chart-placeholder" id="chart-rsi-ph" style="height:100%;"><span class="icon">⚡</span>Belum ada data</div>
+              <canvas id="chart-rsi" style="display:none;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="panel-title">〜 MACD</div>
+          <div class="chart-md" style="position:relative;">
+            <div class="chart-placeholder" id="chart-macd-ph" style="height:100%;"><span class="icon">〜</span>Belum ada data</div>
+            <canvas id="chart-macd" style="display:none;"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: LSTM ─────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-lstm">
+        <div id="lstm-alert"></div>
+
+        <div class="progress-wrap" id="lstm-progress-wrap" style="display:none;">
+          <div class="progress-label"><span>Melatih model BiLSTM…</span><span class="progress-text" id="lstm-progress-pct">0%</span></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" id="lstm-progress-fill"></div></div>
+          <div class="progress-text" id="lstm-progress-text">Mempersiapkan data…</div>
+        </div>
+
+        <div class="pred-summary" id="lstm-pred-summary" style="display:none;">
+          <div class="pred-from">
+            <div class="pred-label">Harga Saat Ini</div>
+            <div class="pred-price" id="pred-price-from">–</div>
+          </div>
+          <div class="pred-arrow">→</div>
+          <div class="pred-to">
+            <div class="pred-label" id="pred-to-label">Prediksi (+30 hari)</div>
+            <div class="pred-price" id="pred-price-to">–</div>
+            <div class="pred-chg" id="pred-chg">–</div>
+          </div>
+        </div>
+
+        <div class="metrics-row" id="lstm-metrics" style="display:none;">
+          <div class="metric"><div class="metric-label">MAE</div><div class="metric-value" id="metric-mae">–</div></div>
+          <div class="metric"><div class="metric-label">RMSE</div><div class="metric-value" id="metric-rmse">–</div></div>
+          <div class="metric"><div class="metric-label">R²</div><div class="metric-value" id="metric-r2">–</div></div>
+          <div class="metric"><div class="metric-label">MAPE</div><div class="metric-value" id="metric-mape">–</div></div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="panel-title">🧠 Riwayat Harga, Data Uji &amp; Prediksi Masa Depan</div>
+          <div class="chart-container" style="position:relative;">
+            <div class="chart-placeholder" id="chart-lstm-main-ph"><span class="icon">🧠</span>Atur parameter di sidebar lalu klik "Latih Model"</div>
+            <canvas id="chart-lstm-main" style="display:none;"></canvas>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="chart-panel">
+            <div class="panel-title">📉 Loss Training</div>
+            <div class="chart-sm" style="position:relative;">
+              <div class="chart-placeholder" id="chart-lstm-loss-ph" style="height:100%;"><span class="icon">📉</span>Belum ada data</div>
+              <canvas id="chart-lstm-loss" style="display:none;"></canvas>
+            </div>
+          </div>
+          <div class="chart-panel">
+            <div class="panel-title">🗓️ Tabel Prediksi Masa Depan</div>
+            <div class="table-wrap" style="max-height:280px;overflow-y:auto;">
+              <table>
+                <thead><tr><th>Tanggal</th><th>Prediksi Harga</th><th>Perubahan</th></tr></thead>
+                <tbody id="future-tbody">
+                  <tr><td colspan="3" style="text-align:center;color:var(--text-muted);">Belum ada data</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: PORTFOLIO ───────────────────────────────────────────────-->
+      <div class="tab-panel" id="tab-portfolio">
+        <div id="portfolio-alert"></div>
+
+        <div class="chart-panel">
+          <div class="panel-title">📈 Perbandingan Kinerja Harga Ternormalisasi (basis 100)</div>
+          <div class="chart-container" style="position:relative;">
+            <div class="chart-placeholder" id="chart-norm-ph"><span class="icon">📈</span>Pilih saham di sidebar lalu klik "Optimalkan Portofolio"</div>
+            <canvas id="chart-norm" style="display:none;"></canvas>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="chart-panel">
+            <div class="panel-title">🎯 Efficient Frontier (Simulasi Monte Carlo)</div>
+            <div class="chart-md" style="position:relative;">
+              <div class="chart-placeholder" id="chart-frontier-ph" style="height:100%;"><span class="icon">🎯</span>Belum ada data</div>
+              <canvas id="chart-frontier" style="display:none;"></canvas>
+            </div>
+          </div>
+          <div class="chart-panel">
+            <div class="panel-title">📊 Return &amp; Volatilitas Tahunan</div>
+            <div class="chart-md" style="position:relative;">
+              <div class="chart-placeholder" id="chart-retvol-ph" style="height:100%;"><span class="icon">📊</span>Belum ada data</div>
+              <canvas id="chart-retvol" style="display:none;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="panel-title">🔗 Matriks Korelasi</div>
+          <div class="table-wrap" id="corr-table-wrap">
+            <table style="font-size:11px;"><tbody><tr><td style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada data</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <div class="portfolio-cards" id="portfolio-cards-row">
+          <div class="port-card"><div class="port-card-title">🌟 Max Sharpe Ratio</div><div class="card-sub">Belum ada data</div></div>
+          <div class="port-card"><div class="port-card-title">🛡️ Min Volatilitas</div><div class="card-sub">Belum ada data</div></div>
+          <div class="port-card"><div class="port-card-title">🚀 Max Return</div><div class="card-sub">Belum ada data</div></div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="panel-title" style="justify-content:space-between;">
+            <span>📦 Rincian Alokasi Lot</span>
+            <select id="alloc-select" style="width:auto;">
+              <option value="max_sharpe">🌟 Max Sharpe Ratio</option>
+              <option value="min_vol">🛡️ Min Volatilitas</option>
+              <option value="max_ret">🚀 Max Return</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Ticker</th><th>Nama</th><th>Bobot</th><th>Alokasi (Rp)</th><th>Harga</th><th>Lot</th><th>Realisasi (Rp)</th></tr></thead>
+              <tbody id="alloc-tbody">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Belum ada data</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/api.js"></script>
+<script src="js/overview.js"></script>
+<script src="js/technical.js"></script>
+<script src="js/lstm.js"></script>
+<script src="js/portfolio.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
